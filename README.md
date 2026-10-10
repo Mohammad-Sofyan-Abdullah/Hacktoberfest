@@ -303,8 +303,8 @@ Raw per-sketch results: `bench/sketches/results_<mode>_<model>.json`.
 
 | Name | Role / contribution |
 |---|---|
-| _Your name_ | _e.g. plan engine, layout solver, benchmark_ |
-| _Teammate_ | _e.g. 3D viewer, AR, UI_ |
+| Mohammad Sofyan Abdullah ([@Mohammad-Sofyan-Abdullah](https://github.com/Mohammad-Sofyan-Abdullah)) | Co-builder |
+| Safwan Hafeez ([@safwanhafeez](https://github.com/safwanhafeez)) | Co-builder |
 
 ## License
 
