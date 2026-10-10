@@ -29,6 +29,8 @@ Naqsha takes a **photo of the sketch** and:
 - AR on a phone (`<model-viewer>`: Scene Viewer on Android, Quick Look on iOS)
 - Area, marla and cost panel (sq ft per marla and the rate are configurable)
 - Visible checker log: every automatic fix and model retry is shown in the UI
+- Architect-style planner: one main gate on the car porch, guest entrance into the drawing room, family entrance into the lounge, kitchen/bedrooms/baths never off the garage
+- Textured 3D: marble, wood, tile, paver and grass floors, 8 ft doors with frames, a steel main gate with pillars, driveway and street, furniture, a car and trees (all procedural, works offline and in AR)
 
 ---
 
@@ -55,6 +57,7 @@ The model alone is not enough. When we asked Qwen2.5-VL-7B to output room coordi
 | **Deterministic repair** | `plan.repair` | Snaps near-miss edges (within 1 ft) into shared walls, drops impossible doors, and adds doors so every room is reachable (main entrance placed on the porch or drawing room). |
 | **Model feedback loop** | `server/llm.py: read_sketch` | Any errors the checker can't fix are sent back to the model to re-read, for up to 2 rounds. |
 | **Edit engine** | `plan.apply_ops` | Resizing inserts or removes a strip of space across the whole house, so neighbouring rooms are pushed instead of overlapped and walls stay aligned. Adding a room inserts space and fills it. Swap and rename keep doors consistent. Fuzzy room-name matching. |
+| **Planner (door layout)** | `plan.plan_circulation` | Re-lays the doors the way a Pakistani house is planned: a main gate on the porch's street side, porch → drawing room for guests, porch → lounge for family, kitchen off the lounge/dining, baths off a bedroom or the lounge, never a route through a bath. Every change is shown in the log. |
 | **2D → 3D geometry** | `plan.geometry`, `web/app.js` | Merges room edges into continuous walls, cuts door openings with lintels above them, builds 9-inch (0.75 ft) brick walls, and exports a 1:50 GLB for AR. |
 | **Benchmark** | `bench/` | A synthetic hand-drawn-style sketch generator with ground truth, and a runner comparing the naive approach with Naqsha's pipeline. |
 
@@ -169,7 +172,7 @@ Edit: kitchen ko 2 feet bara karo
 python -m unittest discover -s tests -t . -v
 ```
 
-16 tests cover the checker (overlaps, impossible doors, duplicate names, bad schema), repair (edge snapping, auto-doors), edits (resize, shrink, add room at the edge and in the middle, swap/rename keeping doors, fuzzy names, unknown ops) and geometry (every door cuts an opening, area and marla). **Result: 16/16 pass.**
+18 tests cover the checker (overlaps, impossible doors, duplicate names, bad schema), repair (edge snapping, auto-doors), edits (resize, shrink, add room at the edge and in the middle, swap/rename keeping doors, fuzzy names, unknown ops) geometry (every door cuts an opening, area and marla) and the planner (one gate on the porch, no kitchen off the garage, plans stay valid and stable). **Result: 18/18 pass.**
 
 ### Benchmark: naive model-only approach vs Naqsha
 
