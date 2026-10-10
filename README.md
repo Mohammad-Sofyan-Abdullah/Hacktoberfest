@@ -2,7 +2,16 @@
 
 **Turn a hand-drawn house plan into a 3D house you can walk through, edit by typing in Roman Urdu or English, and place on a table in AR. It runs locally on an open-weight 7B model.**
 
-Built at Hacktoberfest Islamabad 2026 (Open AI Build Challenge) · Domain: Business & Productivity / Community
+| | |
+|---|---|
+| **Event** | Hacktoberfest Islamabad 2026, Open AI Build Challenge |
+| **Domain** | 04 · Community & Social Good |
+| **Entry type** | Application built on an open-weight model (not an Agent Skill or a model harness) |
+| **Target users** | Families in Pakistan planning to build a house, and the local contractors (*thekedars*) who sketch plans with them |
+| **Model** | Qwen2.5-VL-7B-Instruct (7B, open weights, Apache-2.0) via Ollama, running locally |
+| **License** | [MIT](LICENSE) |
+
+**Contents:** [Problem](#problem) · [Solution](#solution) · [AI component](#ai-component) · [Architecture](#architecture) · [Setup](#setup) · [Demo](#demo) · [Testing and findings](#testing-and-findings) · [Team](#team) · [License](#license) · [Acknowledgements](#acknowledgements)
 
 ---
 
@@ -21,7 +30,7 @@ Naqsha takes a **photo of the sketch** and:
 5. **Shows it on a table in AR**: scan a QR code and a 1:50 model of the house appears on the table through the phone browser, with no app. Edits on the laptop update the phone.
 6. Shows **covered area, plot size in marla and a rough construction cost in PKR**, using a rate you enter.
 
-## Core features
+### Core features
 
 - Sketch photo → 3D house in about 10–20 s on a laptop GPU
 - Walk mode (WASD + mouse) and a top view
@@ -40,13 +49,17 @@ Naqsha takes a **photo of the sketch** and:
 |---|---|
 | **Model** | `qwen2.5vl:7b`: Qwen2.5-VL-7B-Instruct, **7 billion parameters**, open weights (Apache-2.0) |
 | **Runtime** | [Ollama](https://ollama.com) 0.40, running locally (tested on an RTX 4080 Laptop GPU with 12 GB) |
-| **Tested alternative** | `gemma4:e4b`: Gemma 4 E4B, 7.98B total parameters (7.5B language + 0.48B vision), open weights. About 2× faster, slightly less accurate (see Benchmark) |
-| **Integration** | Ollama `/api/chat` with JSON-schema structured output (`format`), temperature 0 |
+| **Tested alternative** | `gemma4:e4b`: Gemma 4 E4B, 7.98B total parameters (7.5B language + 0.48B vision), open weights. About 2× faster, slightly less accurate (see [Benchmark](#benchmark-naive-model-only-approach-vs-naqsha)) |
+| **Integration** | Ollama `/api/chat` with JSON-schema structured output (`format`), temperature 0. Code: `server/llm.py` |
 | **What it does** | (1) **Vision:** reads room names, written dimensions and doors from the sketch photo. (2) **Language:** turns English, Urdu and Roman Urdu edit instructions into structured edit operations. |
 
-The model is central to the product: without it there is no way to get from a photo to a plan, and no way to edit by typing. Nothing goes to a cloud API.
+Both models are within the event's 8B-parameter limit. No API keys and no cloud API are used.
 
-## Our original contribution
+### Why the AI is central
+
+Without the model there is no way to get from a photo to a plan, and no way to edit the house by typing. Removing it would leave a 3D viewer that someone has to fill in by hand, room by room. The model does the two core jobs of the product: **reading the sketch** and **understanding the user's instructions**.
+
+### Our original contribution
 
 The model alone is not enough. When we asked Qwen2.5-VL-7B to output room coordinates directly, it read names and sizes correctly but **placed rooms in the wrong positions** (overlapping rooms, impossible doors). Re-prompting with the errors didn't help, because it repeated the same layout. So we built the parts that make a small model reliable:
 
@@ -61,11 +74,13 @@ The model alone is not enough. When we asked Qwen2.5-VL-7B to output room coordi
 | **2D → 3D geometry** | `plan.geometry`, `web/app.js` | Merges room edges into continuous walls, cuts door openings with lintels above them, builds 9-inch (0.75 ft) brick walls, and exports a 1:50 GLB for AR. |
 | **Benchmark** | `bench/` | A synthetic hand-drawn-style sketch generator with ground truth, and a runner comparing the naive approach with Naqsha's pipeline. |
 
-Third-party building blocks (not our work): Qwen2.5-VL, Ollama, Three.js, model-viewer, FastAPI, qrcodejs.
+Third-party building blocks (not our work): Qwen2.5-VL, Ollama, Three.js, model-viewer, FastAPI, qrcodejs. See [Acknowledgements](#acknowledgements).
 
 ---
 
 ## Architecture
+
+### System architecture
 
 ```mermaid
 flowchart LR
@@ -81,7 +96,7 @@ flowchart LR
     API -->|model.glb| AR
 ```
 
-## Data flow
+### Data flow diagram
 
 ```mermaid
 flowchart LR
@@ -98,7 +113,7 @@ flowchart LR
     G --> X[GLB] --> M[Phone AR]
 ```
 
-## Sequence: editing the house
+### Sequence: editing the house
 
 ```mermaid
 sequenceDiagram
@@ -121,20 +136,54 @@ sequenceDiagram
     Note over B: phone AR page picks up the new model
 ```
 
+There is no database, so there is no ER diagram. The plan lives in the browser as JSON and is sent with each request; the server only keeps the latest GLB in memory for the phone.
+
+### Repository structure
+
+```text
+├── server/
+│   ├── app.py            FastAPI app: API routes, serves the web app and the AR model
+│   ├── llm.py            Ollama calls: sketch reading, edit instructions, feedback loop
+│   └── plan.py           Plan engine: layout solver, checker, repair, edit ops, planner, geometry
+├── web/
+│   ├── index.html        Main app (upload, 3D view, edit box, stats, QR code)
+│   ├── app.js            Three.js scene, walk mode, textures, GLB export
+│   ├── ar.html           Phone AR page (model-viewer)
+│   └── style.css
+├── tests/test_plan.py    Unit tests for the plan engine (no model needed)
+├── bench/                Synthetic sketch generator, benchmark runner and results
+├── samples/              Sample plans and sketch images (5, 7, 10 marla, 1 kanal)
+├── team/                 Task notes for each team member during the build
+├── PLAN.md               Build plan
+├── requirements.txt
+└── LICENSE               MIT
+```
+
 ---
 
 ## Setup
 
-Requirements: Python 3.10+, [Ollama](https://ollama.com) (0.30.9 or newer for Gemma 4), and a GPU with about 8 GB or more of VRAM (it also runs on CPU, slowly).
+### Requirements
+
+- Python 3.10+
+- [Ollama](https://ollama.com) (0.30.9 or newer for Gemma 4)
+- A GPU with about 8 GB or more of VRAM (it also runs on CPU, slowly)
+- Python packages (`requirements.txt`): `fastapi`, `uvicorn[standard]`, `python-multipart`, `httpx`, and `pillow` (only for the benchmark sketch generator)
+- The web pages load Three.js 0.160.0, model-viewer 3.5.0 and qrcodejs 1.0.0 from public CDNs, so the browser needs internet access the first time
+
+### Install and run
 
 ```bash
-git clone <this repo> && cd naqsha
+git clone https://github.com/Mohammad-Sofyan-Abdullah/Hacktoberfest.git
+cd Hacktoberfest
 pip install -r requirements.txt
 ollama pull qwen2.5vl:7b
 python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
 
 Open http://localhost:8000. Click **Load sample 10 marla** to try it without a sketch, or upload a photo.
+
+### Configuration
 
 Environment variables (all optional):
 
@@ -146,13 +195,25 @@ Environment variables (all optional):
 
 No API keys are needed.
 
+### Run the tests
+
+```bash
+python -m unittest discover -s tests -t . -v
+```
+
 ### Drawing a sketch that reads well
+
 Draw rectangular rooms in horizontal rows, write the name and size inside each room (`Kitchen 12x10`, width × depth in feet), and mark doors as gaps or arcs. Grid paper helps.
 
 ### AR on a phone
+
 Connect the phone to the same Wi-Fi and scan the QR code in panel 4, then tap **View on your table**. If Windows asks, allow Python through the firewall on private networks. Android's WebXR mode needs HTTPS. Scene Viewer and iOS Quick Look are tried first; if they fail, expose port 8000 over HTTPS with a tunnel (e.g. `cloudflared tunnel --url http://localhost:8000`) and open the tunnel URL plus `/ar.html`.
 
-## Usage example
+---
+
+## Demo
+
+### Usage example
 
 ```text
 Upload sketch  →  "model read the sketch · 11 rooms · 10.1s"  →  "✓ Checker: plan is buildable"
@@ -161,6 +222,13 @@ Edit: kitchen ko 2 feet bara karo
     Kitchen grew 2 ft on the east side
     also stretched to keep walls aligned: Car Porch, Bedroom 1, Lawn
 ```
+
+### Demo flow
+
+1. Upload a photo of a hand-drawn sketch (or click a sample) and watch the checker log.
+2. Walk through the 3D house in walk mode.
+3. Type an edit such as *"kitchen ko 2 feet bara karo"* and see the changed rooms highlighted.
+4. Scan the QR code with a phone and place the house on a table in AR.
 
 ---
 
@@ -172,7 +240,7 @@ Edit: kitchen ko 2 feet bara karo
 python -m unittest discover -s tests -t . -v
 ```
 
-18 tests cover the checker (overlaps, impossible doors, duplicate names, bad schema), repair (edge snapping, auto-doors), edits (resize, shrink, add room at the edge and in the middle, swap/rename keeping doors, fuzzy names, unknown ops) geometry (every door cuts an opening, area and marla) and the planner (one gate on the porch, no kitchen off the garage, plans stay valid and stable). **Result: 18/18 pass.**
+18 tests cover the checker (overlaps, impossible doors, duplicate names, bad schema), repair (edge snapping, auto-doors), edits (resize, shrink, add room at the edge and in the middle, swap/rename keeping doors, fuzzy names, unknown ops), geometry (every door cuts an opening, area and marla) and the planner (one gate on the porch, no kitchen off the garage, plans stay valid and stable). **Result: 18/18 pass.**
 
 ### Benchmark: naive model-only approach vs Naqsha
 
@@ -219,7 +287,7 @@ Raw per-sketch results: `bench/sketches/results_<mode>_<model>.json`.
 | 5 | Add a room (Roman Urdu) | "Bedroom 2 ke saath east side pe 7x8 ka washroom bana do" | Bath 2, 7×8, east of Bedroom 2, with a door | First version: the model put the size in the wrong field and the room came out 8×8. Fixed by taking sizes the user states explicitly from the instruction; now 7×8 with a door, 1.9 s | ✅ Pass (after fix) |
 | 6 | Swap rooms | "kitchen aur bedroom 1 ki jagah badal do" | Rooms trade places, doors follow | `swap Kitchen, Bedroom 1`, valid, 1.0 s | ✅ Pass |
 | 7 | English edit | "make the lounge 3 ft longer on the south side" | Lounge +3 ft south | `resize Lounge south +3`, Kitchen stretched to stay aligned, valid | ✅ Pass |
-| 8 | AR export | Open `/ar.html` after any edit | GLB served, phone page updates | `/model.glb` returns 200 after each rebuild; phone polls every 2 s | ✅ Pass (desktop); test on your phone before the demo |
+| 8 | AR export | Open `/ar.html` after any edit | GLB served, phone page updates | `/model.glb` returns 200 after each rebuild; phone polls every 2 s | ✅ Pass (desktop) |
 
 ### Known limitations
 
@@ -240,7 +308,20 @@ Raw per-sketch results: `bench/sketches/results_<mode>_<model>.json`.
 
 ## License
 
-[MIT](LICENSE)
+Naqsha is released under the [MIT License](LICENSE).
+
+Third-party components keep their own licenses:
+
+| Component | License | How it is used |
+|---|---|---|
+| Qwen2.5-VL-7B-Instruct | Apache-2.0 | Model weights, downloaded by the user through Ollama (not included in this repo) |
+| Gemma 4 E4B | See [Google's Gemma license](https://ai.google.dev/gemma) | Optional alternative model, downloaded by the user through Ollama (not included) |
+| Ollama | MIT | Local model runtime, installed separately |
+| Three.js 0.160.0 | MIT | Loaded from a CDN |
+| model-viewer 3.5.0 | Apache-2.0 | Loaded from a CDN |
+| qrcodejs 1.0.0 | MIT | Loaded from a CDN |
+| FastAPI, Uvicorn, httpx, python-multipart | MIT / BSD-3-Clause / BSD-3-Clause / Apache-2.0 | Python dependencies (`requirements.txt`) |
+| Pillow | MIT-CMU (HPND) | Benchmark sketch generator only |
 
 ## Acknowledgements
 
@@ -249,5 +330,5 @@ Raw per-sketch results: `bench/sketches/results_<mode>_<model>.json`.
 - [Ollama](https://github.com/ollama/ollama) (MIT)
 - [Three.js](https://threejs.org) (MIT): rendering, OrbitControls, PointerLockControls, GLTFExporter, CSS2DRenderer
 - [model-viewer](https://github.com/google/model-viewer) by Google (Apache-2.0): AR on phones
-- [FastAPI](https://fastapi.tiangolo.com) (MIT), [qrcodejs](https://github.com/davidshimjs/qrcodejs) (MIT), [Pillow](https://python-pillow.org) (HPND)
+- [FastAPI](https://fastapi.tiangolo.com) (MIT), [Uvicorn](https://www.uvicorn.org) (BSD-3-Clause), [httpx](https://www.python-httpx.org) (BSD-3-Clause), [qrcodejs](https://github.com/davidshimjs/qrcodejs) (MIT), [Pillow](https://python-pillow.org) (HPND)
 - Development was assisted by an AI coding tool (Claude Code); the submitted product uses only the open-weight model above.
