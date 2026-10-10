@@ -106,7 +106,8 @@ class ModelError(RuntimeError):
 
 
 def _chat(messages, schema, timeout=180):
-    body = {"model": MODEL, "messages": messages, "format": schema, "stream": False,
+    # think=False: thinking models (e.g. Gemma 4) are much slower with no gain on this task
+    body = {"model": MODEL, "messages": messages, "format": schema, "stream": False, "think": False,
             "options": {"temperature": 0, "num_ctx": 8192}, "keep_alive": "30m"}
     t0 = time.time()
     try:
