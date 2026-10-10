@@ -16,6 +16,8 @@
   #status { color: var(--muted); font-size: 13px; }
   #arBtn { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--accent-ink);
     border: 0; border-radius: 999px; padding: 14px 22px; font: 600 16px system-ui, sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+  #tips { position: fixed; left: 16px; right: 16px; bottom: 84px; z-index: 2; margin: 0; padding: 10px 12px; border-radius: 10px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent); color: var(--muted); font-size: 13px; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -24,6 +26,7 @@
   camera-controls auto-rotate shadow-intensity="1" exposure="1.05" alt="3D model of the house">
   <button slot="ar-button" id="arBtn">View on your table</button>
 </model-viewer>
+<p id="tips">For AR: good light, a textured surface (wood or a patterned cloth, not plain white or glass). Hold the phone 30–60 cm above it and move it slowly side to side until dots appear, then tap.</p>
 <script>
   const mv = document.getElementById("mv"), status = document.getElementById("status");
   let version = 0;
