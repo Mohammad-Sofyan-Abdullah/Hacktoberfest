@@ -1,0 +1,105 @@
+{
+ "rooms": [
+  {
+   "name": "Car Porch",
+   "x": 0.0,
+   "y": 0.0,
+   "w": 11.0,
+   "h": 12.0
+  },
+  {
+   "name": "Drawing Room",
+   "x": 11.0,
+   "y": 0.0,
+   "w": 14.0,
+   "h": 12.0
+  },
+  {
+   "name": "Lounge",
+   "x": 0.0,
+   "y": 12.0,
+   "w": 15.0,
+   "h": 14.0
+  },
+  {
+   "name": "Kitchen",
+   "x": 15.0,
+   "y": 12.0,
+   "w": 10.0,
+   "h": 14.0
+  },
+  {
+   "name": "Bedroom 1",
+   "x": 0.0,
+   "y": 26.0,
+   "w": 13.0,
+   "h": 12.0
+  },
+  {
+   "name": "Bath 1",
+   "x": 13.0,
+   "y": 26.0,
+   "w": 7.0,
+   "h": 12.0
+  },
+  {
+   "name": "Store",
+   "x": 20.0,
+   "y": 26.0,
+   "w": 5.0,
+   "h": 12.0
+  },
+  {
+   "name": "Bedroom 2",
+   "x": 0.0,
+   "y": 38.0,
+   "w": 18.0,
+   "h": 12.0
+  },
+  {
+   "name": "Bath 2",
+   "x": 18.0,
+   "y": 38.0,
+   "w": 7.0,
+   "h": 12.0
+  }
+ ],
+ "doors": [
+  {
+   "a": "Car Porch",
+   "b": "outside"
+  },
+  {
+   "a": "Car Porch",
+   "b": "Drawing Room"
+  },
+  {
+   "a": "Drawing Room",
+   "b": "Lounge"
+  },
+  {
+   "a": "Lounge",
+   "b": "Kitchen"
+  },
+  {
+   "a": "Lounge",
+   "b": "Bedroom 1"
+  },
+  {
+   "a": "Bedroom 1",
+   "b": "Bath 1"
+  },
+  {
+   "a": "Kitchen",
+   "b": "Store"
+  },
+  {
+   "a": "Bedroom 1",
+   "b": "Bedroom 2"
+  },
+  {
+   "a": "Bedroom 2",
+   "b": "Bath 2"
+  }
+ ]
+}
