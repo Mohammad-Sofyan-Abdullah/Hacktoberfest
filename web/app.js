@@ -196,6 +196,18 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 addEventListener("resize", resize);
+new ResizeObserver(resize).observe(view); // keeps the canvas sharp while the panel slides
+
+// slide the side panel away for a full-screen view, and back
+const panelBtn = $("panelBtn");
+function setPanel(open) {
+  document.body.classList.toggle("collapsed", !open);
+  panelBtn.querySelector("span").textContent = open ? "‹" : "☰";
+  panelBtn.title = panelBtn.ariaLabel = open ? "Hide panel" : "Show panel";
+  try { localStorage.setItem("naqsha-panel", open ? "open" : "closed"); } catch {}
+}
+panelBtn.onclick = () => setPanel(document.body.classList.contains("collapsed"));
+try { if (localStorage.getItem("naqsha-panel") === "closed") setPanel(false); } catch {}
 resize();
 
 // ---- materials -------------------------------------------------------------
