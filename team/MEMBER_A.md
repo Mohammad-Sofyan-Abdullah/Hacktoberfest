@@ -46,7 +46,7 @@ Timeline assumes a 14:30 code freeze and a 15:00 finish. If the organizers annou
 python -m bench.run rows                                   # qwen2.5vl:7b (current)
 $env:NAQSHA_MODEL="qwen3-vl:8b"; python -m bench.run rows  # backup model
 ```
-- Copy `bench/sketches/results_rows.json` aside between runs, since each run overwrites it.
+- Each run saves `bench/sketches/results_<mode>_<model>.json`, so runs for different models do not overwrite each other.
 - Also run both on your real photos: `python -m bench.run rows samples`
 - Keep whichever model is more accurate as the default (`MODEL` in `server/llm.py`). It must stay at 8B or under, and it's Apache-2.0 either way.
 - Send C the numbers for the README (one row per model, real photos as a separate row).

@@ -37,7 +37,8 @@ Naqsha takes a **photo of the sketch** and:
 | | |
 |---|---|
 | **Model** | `qwen2.5vl:7b`: Qwen2.5-VL-7B-Instruct, **7 billion parameters**, open weights (Apache-2.0) |
-| **Runtime** | [Ollama](https://ollama.com) 0.12, running locally (tested on an RTX 4080 Laptop GPU with 12 GB) |
+| **Runtime** | [Ollama](https://ollama.com) 0.40, running locally (tested on an RTX 4080 Laptop GPU with 12 GB) |
+| **Tested alternative** | `gemma4:e4b`: Gemma 4 E4B, 7.98B total parameters (7.5B language + 0.48B vision), open weights. About 2× faster, slightly less accurate (see Benchmark) |
 | **Integration** | Ollama `/api/chat` with JSON-schema structured output (`format`), temperature 0 |
 | **What it does** | (1) **Vision:** reads room names, written dimensions and doors from the sketch photo. (2) **Language:** turns English, Urdu and Roman Urdu edit instructions into structured edit operations. |
 
@@ -121,7 +122,7 @@ sequenceDiagram
 
 ## Setup
 
-Requirements: Python 3.10+, [Ollama](https://ollama.com), and a GPU with about 8 GB or more of VRAM (it also runs on CPU, slowly).
+Requirements: Python 3.10+, [Ollama](https://ollama.com) (0.30.9 or newer for Gemma 4), and a GPU with about 8 GB or more of VRAM (it also runs on CPU, slowly).
 
 ```bash
 git clone <this repo> && cd naqsha
@@ -137,7 +138,7 @@ Environment variables (all optional):
 | Name | Default | Meaning |
 |---|---|---|
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama server |
-| `NAQSHA_MODEL` | `qwen2.5vl:7b` | Any Ollama vision model ≤ 8B |
+| `NAQSHA_MODEL` | `qwen2.5vl:7b` | Any Ollama vision model ≤ 8B total parameters, e.g. `gemma4:e4b` |
 | `NAQSHA_REPAIR_ROUNDS` | `2` | Max model re-read rounds after checker feedback |
 
 No API keys are needed.
@@ -191,7 +192,18 @@ What this tells us:
 - **Re-prompting the model with errors added nothing in coordinate mode** (75% → 75%): it repeats its layout. The deterministic checker and repair do the fixing, which is why the main pipeline seldom needs another model call.
 - Remaining miss: in sketch `06`, 4 rooms were placed in the wrong row (the model merged two rows). The plan is still buildable, and the user can correct it with an edit.
 
-Raw per-sketch results: `bench/sketches/results_rows.json`, `bench/sketches/results_coords.json`.
+#### Model comparison (same 8 sketches, Ollama 0.40.2, RTX 4080 Laptop)
+
+| Model | Total params | Naqsha rows: placed correctly | Naive coords: placed correctly | Avg time per sketch |
+|---|---|---|---|---|
+| **Qwen2.5-VL 7B** (`qwen2.5vl:7b`, default) | 7B | **95%** | 57% | 10.7 s |
+| Gemma 4 E4B (`gemma4:e4b`) | 7.98B (7.5B LM + 0.48B vision) | 88% | 82% | **5.1 s** |
+
+- Gemma 4 is about **2× faster** and much better than Qwen at raw coordinates. But it misread one size on sketch `03`, which shifted every room after it, so Qwen stays the default for accuracy.
+- The checker and repair make **every** run buildable (100%) with both models. Naqsha's pipeline improves both, and the gain is largest for the weaker coordinate reader.
+- Switch models with `NAQSHA_MODEL=gemma4:e4b`. Naqsha sends `think: false`, because Gemma 4's thinking mode is slower and didn't help this task.
+
+Raw per-sketch results: `bench/sketches/results_<mode>_<model>.json`.
 
 ### Manual test scenarios
 
@@ -230,6 +242,7 @@ Raw per-sketch results: `bench/sketches/results_rows.json`, `bench/sketches/resu
 ## Acknowledgements
 
 - [Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL) by the Qwen team, Alibaba (Apache-2.0)
+- [Gemma 4](https://ai.google.dev/gemma) by Google DeepMind (tested alternative model)
 - [Ollama](https://github.com/ollama/ollama) (MIT)
 - [Three.js](https://threejs.org) (MIT): rendering, OrbitControls, PointerLockControls, GLTFExporter, CSS2DRenderer
 - [model-viewer](https://github.com/google/model-viewer) by Google (Apache-2.0): AR on phones

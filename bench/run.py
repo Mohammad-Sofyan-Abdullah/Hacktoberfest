@@ -68,7 +68,9 @@ def main(folder, mode):
     if pl:
         summary["rooms_placed_correctly"] = f"{100 * sum(pl) / len(pl):.0f}%"
     print("\nSUMMARY", json.dumps(summary, indent=1))
-    (folder / f"results_{mode}.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=1))
+    summary["model"] = llm.MODEL
+    tag = llm.MODEL.replace(":", "-").replace("/", "-")
+    (folder / f"results_{mode}_{tag}.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=1))
 
 
 if __name__ == "__main__":
