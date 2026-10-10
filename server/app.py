@@ -55,7 +55,7 @@ def info(request: Request):
     elif host and hostname not in ("localhost", "127.0.0.1", "::1", "[::1]") and https:
         ar_url = f"https://{host}/ar.html"
     else:
-        ar_url = f"http://{_lan_ip()}:{request.url.port or 8000}/ar.html"
+        ar_url = f"{request.url.scheme}://{_lan_ip()}:{request.url.port or 8000}/ar.html"  # https when run with a certificate
     return {"model": llm.MODEL, "ar_url": ar_url}
 
 

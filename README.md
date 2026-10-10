@@ -207,6 +207,16 @@ Draw rectangular rooms in horizontal rows, write the name and size inside each r
 
 ### AR on a phone
 
+**Floating view (no surface needed).** On the phone's AR page, tap **Floating view** to see the house hovering over the live camera; drag to turn it, pinch to zoom. Phones only allow the camera over HTTPS, so for this run the server with a self-signed certificate (the `certs/` folder is git-ignored; put your laptop's LAN IP in it):
+
+```bash
+mkdir certs
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -keyout certs/key.pem -out certs/cert.pem \n  -subj "/CN=naqsha.local" -addext "subjectAltName=IP:<your LAN IP>,IP:127.0.0.1,DNS:localhost"
+python -m uvicorn server.app:app --host 0.0.0.0 --port 8000 --ssl-keyfile certs/key.pem --ssl-certfile certs/cert.pem
+```
+
+Open `https://localhost:8000` on the laptop and accept the certificate warning once; the QR code then points the phone at the `https://` AR page (accept the warning there too).
+
 Connect the phone to the same Wi-Fi and scan the QR code in panel 4, then tap **View on your table**. If Windows asks, allow Python through the firewall on private networks. Android's WebXR mode needs HTTPS. Scene Viewer and iOS Quick Look are tried first; if they fail, expose port 8000 over HTTPS with a tunnel (e.g. `cloudflared tunnel --url http://localhost:8000`) and open the tunnel URL plus `/ar.html`.
 
 ---

@@ -18,9 +18,19 @@
     border: 0; border-radius: 999px; padding: 14px 22px; font: 600 16px system-ui, sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
   #tips { position: fixed; left: 16px; right: 16px; bottom: 84px; z-index: 2; margin: 0; padding: 10px 12px; border-radius: 10px;
     background: color-mix(in srgb, var(--bg) 88%, transparent); color: var(--muted); font-size: 13px; pointer-events: none; }
+  #floatBtn { position: absolute; bottom: 24px; left: 16px; background: rgba(20,23,26,.85); color: #fff; border: 0; border-radius: 999px;
+    padding: 14px 18px; font: 600 15px system-ui, sans-serif; z-index: 3; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+  #cam { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; background: #0d0f12; }
+  body.floating { background: #0d0f12; }
+  body.floating model-viewer { position: fixed; inset: 0; z-index: 1; background: transparent; }
+  body.floating #tips, body.floating #arBtn { display: none; }
+  body.floating header { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  body.floating #status { color: #e5e7eb; }
 </style>
 </head>
 <body>
+<video id="cam" playsinline muted hidden></video>
+<button id="floatBtn" type="button">Floating view</button>
 <header><h1>Naqsha · AR</h1><div id="status">Waiting for the house…</div></header>
 <model-viewer id="mv" ar ar-modes="webxr scene-viewer quick-look" ar-placement="floor" ar-scale="auto"
   camera-controls auto-rotate shadow-intensity="1" exposure="1.05" alt="3D model of the house">
@@ -43,6 +53,34 @@
     setTimeout(poll, 2000);
   }
   poll();
+
+  // floating view: the house hovers over the live camera picture, no surface detection needed.
+  // Camera access needs HTTPS; without it the house floats on a dark background instead.
+  const cam = document.getElementById("cam"), floatBtn = document.getElementById("floatBtn");
+  let stream = null;
+  floatBtn.onclick = async () => {
+    if (document.body.classList.toggle("floating")) {
+      floatBtn.textContent = "Exit floating view";
+      mv.autoRotate = false;
+      mv.cameraOrbit = "30deg 60deg auto";
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        cam.srcObject = stream;
+        cam.hidden = false;
+        await cam.play();
+        status.textContent = "Drag to turn the house, pinch to zoom";
+      } catch {
+        status.textContent = location.protocol === "https:" ? "Camera unavailable; showing the house on its own"
+          : "Camera needs the https:// address; showing the house on its own";
+      }
+    } else {
+      floatBtn.textContent = "Floating view";
+      mv.autoRotate = true;
+      stream?.getTracks().forEach((t) => t.stop());
+      stream = null;
+      cam.hidden = true;
+    }
+  };
 </script>
 </body>
 </html>
