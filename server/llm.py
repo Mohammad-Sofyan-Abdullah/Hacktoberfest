@@ -80,8 +80,8 @@ doors: one entry per door drawn (a gap or arc in a wall) between two rooms that 
 Return only JSON."""
 
 EDIT_PROMPT = """You edit a house floor plan by emitting operations. Units are feet.
-The user may write in English, Urdu, or Roman Urdu (e.g. "kitchen ko 2 feet bara karo" = make the kitchen 2 ft bigger,
-"chhota" = smaller, "ke saath" / "ke paas" = next to, "washroom" = bath, "naya" = new, "hata do" = remove, "jagah badal do" = swap).
+The user writes in English (e.g. "make the kitchen 2 ft bigger"). If they slip into Roman Urdu, understand it:
+"bara" = bigger, "chhota" = smaller, "ke saath" / "ke paas" = next to, "washroom" = bath, "naya" = new, "hata do" = remove, "jagah badal do" = swap.
 
 Directions: north = top/front, south = bottom/back, east = right, west = left.
 
@@ -97,7 +97,7 @@ Available ops (JSON objects):
 
 Use room names exactly as listed. If the user does not give a size for a new room, use a sensible one
 (bath 7x8, bedroom 12x14, store 6x8, kitchen 10x12).
-"reply" is one short friendly sentence confirming the change, in the same language the user used.
+"reply" is one short friendly sentence confirming the change, always in English.
 Return only JSON: {"reply": ..., "ops": [...]}"""
 
 

@@ -334,9 +334,9 @@ $("editForm").onsubmit = async (ev) => {
 };
 
 const EXAMPLES = [
-  "kitchen ko 2 feet bara karo",
-  "Bedroom 2 ke saath east side pe 7x8 ka washroom bana do",
-  "kitchen aur bedroom 1 ki jagah badal do",
+  "make the kitchen 2 ft bigger",
+  "add a 7x8 bath on the east side of Bedroom 2",
+  "swap the kitchen and Bedroom 1",
   "make the lounge 3 ft longer on the south side",
 ];
 $("chips").innerHTML = EXAMPLES.map((t) => `<button class="chip" type="button">${esc(t)}</button>`).join("");
