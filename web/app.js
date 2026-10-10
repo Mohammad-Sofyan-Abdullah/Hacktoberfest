@@ -121,6 +121,30 @@ const TEX = {
     speckle(g, s, 5000, ["#4a4d52", "#33363a", "#55585c"], 2);
   }) },
 };
+TEX.brick = { ft: 4, map: canvasTex(256, (g, s) => {
+  g.fillStyle = "#d8cfc2"; g.fillRect(0, 0, s, s);
+  const rows = 8, h = s / rows, w = h * 2.2;
+  for (let r = 0; r < rows; r++) for (let x = (r % 2) * -w / 2; x < s; x += w) {
+    g.fillStyle = `hsl(${rand(10, 18)}, ${rand(45, 60)}%, ${rand(36, 46)}%)`;
+    g.fillRect(x + 1.5, r * h + 1.5, w - 3, h - 3);
+  }
+  speckle(g, s, 1500, ["rgba(0,0,0,.1)", "rgba(255,255,255,.08)"]);
+}) };
+// flat colour for each texture, used for the light phone (AR) model
+const FLAT = new Map([[TEX.wood.map, 0xa0703f], [TEX.marble.map, 0xe6e0d6], [TEX.kitchen.map, 0xd2b48c],
+  [TEX.bath.map, 0xc4e2ea], [TEX.pavers.map, 0x96948e], [TEX.grass.map, 0x5f8f45], [TEX.concrete.map, 0xb9b6ae],
+  [TEX.plaster.map, 0xf2ece2], [TEX.asphalt.map, 0x3d4045], [TEX.brick.map, 0xa4583c]]);
+
+// finishes the user can pick; remembered in this browser only
+const FLOOR_FINISHES = { marble: "Marble", wood: "Wood planks", kitchen: "Checked tiles", bath: "Blue tiles",
+  pavers: "Pavers", concrete: "Polished concrete", grass: "Grass" };
+const WALL_FINISHES = { white: ["White plaster", "plaster", 0xffffff], beige: ["Warm beige", "plaster", 0xf3dcb8],
+  grey: ["Soft grey", "plaster", 0xc9ccd1], sage: ["Sage green", "plaster", 0xc9d8b8], brick: ["Exposed brick", "brick", 0xffffff] };
+const DOOR_FINISHES = { teak: ["Teak", 0xd9b48c], walnut: ["Walnut", 0x7a4b2a], white: ["Painted white", 0xf7f4ee] };
+const finishes = { floors: {}, wall: "white", door: "teak" };
+try { Object.assign(finishes, JSON.parse(localStorage.getItem("naqsha-finishes") || "{}")); } catch {}
+function saveFinishes() { try { localStorage.setItem("naqsha-finishes", JSON.stringify(finishes)); } catch {} }
+
 function scaleUV(geo, su, sv) {
   const uv = geo.attributes.uv;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
@@ -193,51 +217,89 @@ const M = {
   tyre: std({ color: 0x151515 }), road: std({ map: TEX.asphalt.map, roughness: 1 }),
   drive: std({ map: TEX.pavers.map, roughness: 1 }), line: std({ color: 0xf2f2f2 }),
 };
-// floor finish per room, the way a Pakistani house is usually finished
-function floorTex(name) {
+// default floor finish per room, the way a Pakistani house is usually finished
+const LAWN = /lawn|garden|grass|sehan|courtyard/i;
+function floorKey(name) {
   const n = name.toLowerCase();
-  if (/lawn|garden|grass|sehan|courtyard/.test(n)) return TEX.grass;
-  if (/porch|garage|parking|car/.test(n)) return TEX.pavers;
-  if (/bath|wash|toilet|wc/.test(n)) return TEX.bath;
-  if (/kitchen/.test(n)) return TEX.kitchen;
-  if (/store|laundry|pantry/.test(n)) return TEX.concrete;
-  if (/drawing|lounge|tv|living|dining|hall/.test(n)) return TEX.marble;
-  return TEX.wood; // bedrooms etc.
+  if (LAWN.test(n)) return "grass";
+  if (/porch|garage|parking|car/.test(n)) return "pavers";
+  if (/bath|wash|toilet|wc/.test(n)) return "bath";
+  if (/kitchen/.test(n)) return "kitchen";
+  if (/store|laundry|pantry/.test(n)) return "concrete";
+  if (/drawing|lounge|tv|living|dining|hall/.test(n)) return "marble";
+  return "wood"; // bedrooms etc.
 }
+const roomFloor = (name) => finishes.floors[name] || floorKey(name);
+function applyFinishes() {
+  const [, tex, tint] = WALL_FINISHES[finishes.wall] || WALL_FINISHES.white;
+  wallMat.map = TEX[tex].map; wallMat.color.setHex(tint); wallMat.needsUpdate = true;
+  doorMat.color.setHex((DOOR_FINISHES[finishes.door] || DOOR_FINISHES.teak)[1]);
+}
+const options = (sel, entries, value) => {
+  $(sel).innerHTML = entries.map(([k, label]) => `<option value="${k}"${k === value ? " selected" : ""}>${esc(label)}</option>`).join("");
+};
+options("wallFinish", Object.entries(WALL_FINISHES).map(([k, v]) => [k, v[0]]), finishes.wall);
+options("doorFinish", Object.entries(DOOR_FINISHES).map(([k, v]) => [k, v[0]]), finishes.door);
+applyFinishes();
+$("wallFinish").onchange = (e) => { finishes.wall = e.target.value; saveFinishes(); applyFinishes(); pushAR(); };
+$("doorFinish").onchange = (e) => { finishes.door = e.target.value; saveFinishes(); applyFinishes(); pushAR(); };
 
 // ---- build the 3D house from server geometry ------------------------------
-let pulse = [];
+let pulse = [], floors = [], labelEls = {}, selected = null;
 function build(bundle, changed = new Set()) {
   for (const g of [house, labels, site]) {
     g.traverse((o) => o.geometry?.dispose());
     g.clear();
   }
   pulse = [];
+  floors = [];
+  labelEls = {};
   const { plan, geometry } = bundle;
   for (const r of plan.rooms) {
-    const tex = floorTex(r.name);
+    const tex = TEX[roomFloor(r.name)];
     const mat = std({ map: tex.map, roughness: tex === TEX.marble ? 0.35 : 0.9 });
     const floor = new THREE.Mesh(scaleUV(new THREE.PlaneGeometry(r.w, r.h), r.w / tex.ft, r.h / tex.ft), mat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(r.x + r.w / 2, 0.02, r.y + r.h / 2);
     floor.receiveShadow = true;
+    floor.userData.room = r.name;
+    floors.push(floor);
     house.add(floor);
     if (changed.has(r.name)) pulse.push(mat);
     furnish(r);
 
     const div = document.createElement("div");
-    div.className = "label" + (changed.has(r.name) ? " changed" : "");
+    div.className = "label" + (changed.has(r.name) ? " changed" : "") + (r.name === selected ? " selected" : "");
     div.innerHTML = `${esc(r.name)}<small>${fmt(r.w)} × ${fmt(r.h)} ft</small>`;
+    labelEls[r.name] = div;
     const lab = new CSS2DObject(div);
     lab.position.set(r.x + r.w / 2, 1, r.y + r.h / 2);
     labels.add(lab);
   }
-  for (const w of geometry.walls) addBox(w, 0, WALL_H, wallMat, WALL_T);
+  // walls between lawn and street (or lawn and lawn) become a low boundary fence
+  const open = (x, z) => {
+    const r = plan.rooms.find((r) => x > r.x && x < r.x + r.w && z > r.y && z < r.y + r.h);
+    return !r || LAWN.test(r.name);
+  };
+  const bothOpen = (s) => {
+    const m = (s.lo + s.hi) / 2;
+    return s.axis === "h" ? open(m, s.c - 0.5) && open(m, s.c + 0.5) : open(s.c - 0.5, m) && open(s.c + 0.5, m);
+  };
+  for (const w of geometry.walls) {
+    const cuts = plan.rooms.flatMap((r) => (w.axis === "h" ? [r.x, r.x + r.w] : [r.y, r.y + r.h]))
+      .filter((c) => c > w.lo + 0.01 && c < w.hi - 0.01).sort((a, b) => a - b);
+    const pts = [w.lo, ...new Set(cuts), w.hi];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const s = { axis: w.axis, c: w.c, lo: pts[i], hi: pts[i + 1] };
+      if (bothOpen(s)) addFence(s); else addBox(s, 0, WALL_H, wallMat, WALL_T);
+    }
+  }
   const rooms = new Map(plan.rooms.map((r) => [r.name, r]));
   for (const d of geometry.doors) {
     const room = rooms.get(d.b) || rooms.get(d.a);
     const inward = sideOf(d, d.b === "outside" ? rooms.get(d.a) : room);
     if (d.kind === "gate") { addGate(d, inward); continue; }
+    if (bothOpen(d)) continue; // an opening in the lawn fence needs no door
     addBox(d, DOOR_H, WALL_H, lintelMat, WALL_T);
     addFrame(d);
     addLeaf(d, d.lo, 1, d.hi - d.lo - 0.1, DOOR_H - 0.1, d.kind === "main" ? mainDoorMat : doorMat, inward, d.kind === "main" ? 0.6 : 1.2);
@@ -276,6 +338,16 @@ function wallBox(d, at, y, len, h, t, mat, group = house) {
   return m;
 }
 
+// low plastered base with a steel railing on top (marked as detail: left out of the light AR model)
+function addFence(s) {
+  const len = s.hi - s.lo, mid = (s.lo + s.hi) / 2;
+  wallBox(s, mid, 0, len + 0.6, 1.6, 0.6, wallMat);
+  for (const y of [2.4, 4.6]) wallBox(s, mid, y, len, 0.14, 0.14, steelMat);
+  const posts = Math.max(1, Math.round(len / 5));
+  for (let i = 0; i <= posts; i++) wallBox(s, s.lo + (len * i) / posts, 1.6, 0.4, 3.4, 0.4, pillarMat);
+  for (let at = s.lo + 0.5; at < s.hi - 0.3; at += 0.55) wallBox(s, at, 1.6, 0.07, 3.1, 0.07, steelMat).userData.detail = true;
+}
+
 // +1 if the room lies on the +z (h wall) or +x (v wall) side of the door's wall, else -1
 function sideOf(d, room) {
   if (!room) return 1;
@@ -310,10 +382,10 @@ function addGate(d, inward) {
   }
   for (const [hinge, dir] of [[d.lo + 0.8, 1], [d.hi - 0.8, -1]]) {
     const g = new THREE.Group(), lw = half - 0.8;
-    const bar = (x, y, bw, bh) => { const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 0.12), steelMat); m.position.set(x, y, 0); m.castShadow = true; g.add(m); };
+    const bar = (x, y, bw, bh) => { const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 0.12), steelMat); m.position.set(x, y, 0); m.castShadow = true; g.add(m); return m; };
     bar(lw / 2, 0.4, lw, 0.2); bar(lw / 2, GATE_H - 0.1, lw, 0.2); bar(lw / 2, GATE_H * 0.45, lw, 0.15);
     bar(0.08, GATE_H / 2, 0.16, GATE_H); bar(lw - 0.08, GATE_H / 2, 0.16, GATE_H);
-    for (let x = 0.5; x < lw - 0.3; x += 0.45) bar(x, GATE_H / 2 + 0.1, 0.06, GATE_H - 0.6);
+    for (let x = 0.5; x < lw - 0.3; x += 0.45) bar(x, GATE_H / 2 + 0.1, 0.06, GATE_H - 0.6).userData.detail = true;
     addLeaf(d, hinge, dir, lw, GATE_H, null, inward, 0.95, g);
   }
   tag(d, "Main gate", GATE_H + 3, "gate");
@@ -476,11 +548,29 @@ renderer.setAnimationLoop(() => {
 // ---- AR export: GLB at 1:50 sent to the server for the phone page -----------
 const exporter = new GLTFExporter();
 let arTimer;
+// phones choke on a heavy GLB (and iOS must convert it to USDZ on the fly), so AR gets a light copy:
+// flat colours instead of textures, shared materials, and no thin railings or gate bars
+function lightCopy() {
+  const g = house.clone(true), mats = new Map(), drop = [];
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.userData.detail) { drop.push(o); return; }
+    const m = o.material, c = new THREE.Color(m.map ? (FLAT.get(m.map) ?? 0xcccccc) : m.color.getHex());
+    if (m.map) c.multiply(m.color);
+    const key = `${c.getHexString()}-${m.metalness > 0.5}`;
+    if (!mats.has(key)) mats.set(key, new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: m.metalness > 0.5 ? 0.4 : 0 }));
+    o.material = mats.get(key);
+    o.castShadow = o.receiveShadow = false;
+  });
+  drop.forEach((o) => o.parent.remove(o));
+  return g;
+}
+
 function pushAR() {
   clearTimeout(arTimer);
   arTimer = setTimeout(() => {
     const { cx, cz } = bounds();
-    const g = house.clone(true);
+    const g = lightCopy();
     g.position.set(-cx * AR_SCALE, 0, -cz * AR_SCALE);
     g.scale.setScalar(AR_SCALE);
     const root = new THREE.Group();
@@ -660,3 +750,78 @@ api("/api/info").then((i) => {
   $("arLink").href = i.ar_url;
   new QRCode($("qr"), { text: i.ar_url, width: 240, height: 240 });
 }).catch(() => {});
+
+// ---- design a house from a text brief (model designs it, server draws the sketch) ----
+$("genForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const prompt = $("genText").value.trim() || $("genText").placeholder.replace(/^Describe a house:\s*/, "");
+  busy(`Designing the house with ${model}…`);
+  try {
+    const b = await api("/api/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }),
+    });
+    $("thumb").src = b.image;
+    $("thumb").hidden = false;
+    renderLog(b.log, b.remaining_errors || []);
+    apply(b, { changed: diff(current?.plan, b.plan), reframe: true });
+  } catch (e) { alert(e.message); } finally { busy(); }
+};
+
+// ---- edit by hand: click a room, then resize / rename / refloor / delete it ----
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+let downAt = null;
+renderer.domElement.addEventListener("pointerdown", (e) => (downAt = [e.clientX, e.clientY]));
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!downAt || walk.isLocked || !current) return;
+  if (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return; // that was an orbit drag
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(floors, false)[0];
+  select(hit ? hit.object.userData.room : null);
+});
+
+options("rFloor", Object.entries(FLOOR_FINISHES), "");
+function select(name) {
+  selected = current?.plan.rooms.some((r) => r.name === name) ? name : null;
+  for (const [n, el] of Object.entries(labelEls)) el.classList.toggle("selected", n === selected);
+  $("roomForm").hidden = !selected;
+  $("pickHint").hidden = !!selected;
+  if (!selected) return;
+  const r = current.plan.rooms.find((r) => r.name === selected);
+  $("rName").value = r.name;
+  $("rW").value = fmt(r.w);
+  $("rH").value = fmt(r.h);
+  $("rFloor").value = roomFloor(r.name);
+}
+
+async function manual(ops, keep) {
+  busy("Updating the plan…");
+  try {
+    const b = await api("/api/ops", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: current.plan, ops }),
+    });
+    apply(b, { changed: diff(current.plan, b.plan) });
+    select(keep);
+  } catch (e) { alert(e.message); } finally { busy(); }
+}
+
+$("roomForm").onsubmit = (e) => {
+  e.preventDefault();
+  const r = current?.plan.rooms.find((r) => r.name === selected);
+  if (!r) return;
+  const name = $("rName").value.trim() || r.name, w = +$("rW").value, h = +$("rH").value;
+  const floor = $("rFloor").value;
+  if (floor !== floorKey(r.name)) finishes.floors[name] = floor; else delete finishes.floors[name];
+  if (name !== r.name) delete finishes.floors[r.name];
+  saveFinishes();
+  const ops = [];
+  if (w > 0 && h > 0 && (Math.abs(w - r.w) > 0.01 || Math.abs(h - r.h) > 0.01)) ops.push({ op: "set_size", room: r.name, w, h });
+  if (name !== r.name) ops.push({ op: "rename", room: r.name, to: name });
+  if (ops.length) manual(ops, name);
+  else { build(current); select(name); } // only the floor finish changed
+};
+$("rDelete").onclick = () => {
+  if (selected && confirm(`Delete ${selected}?`)) manual([{ op: "remove_room", room: selected }], null);
+};
+$("rClose").onclick = () => select(null);

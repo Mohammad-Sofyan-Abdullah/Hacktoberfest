@@ -21,13 +21,17 @@
   </header>
 
   <section>
-    <h2>1 · Sketch</h2>
+    <h2>1 · Start from a sketch or an idea</h2>
     <div class="row">
       <label class="btn primary">Upload sketch photo
         <input id="file" type="file" accept="image/*" capture="environment" hidden>
       </label>
       <button id="sample" class="btn">Load sample 10 marla</button>
     </div>
+    <form id="genForm" class="gen">
+      <textarea id="genText" rows="2" placeholder="Describe a house: 10 marla, 3 bedrooms with attached baths, drawing room, car porch and a lawn"></textarea>
+      <button class="btn" id="genBtn">Design it</button>
+    </form>
     <img id="thumb" alt="" hidden>
     <ol id="log"></ol>
   </section>
@@ -44,7 +48,33 @@
   </section>
 
   <section>
-    <h2>3 · Numbers</h2>
+    <h2>3 · Edit by hand</h2>
+    <p class="hint" id="pickHint">Click a room in the 3D view to resize, rename or change its floor.</p>
+    <form id="roomForm" class="inspector" hidden>
+      <div class="row inputs">
+        <label>Name <input id="rName"></label>
+      </div>
+      <div class="row inputs">
+        <label>Width (ft) <input id="rW" type="number" min="3" step="0.5"></label>
+        <label>Depth (ft) <input id="rH" type="number" min="3" step="0.5"></label>
+      </div>
+      <div class="row inputs">
+        <label>Floor <select id="rFloor"></select></label>
+      </div>
+      <div class="row">
+        <button class="btn primary small" id="rApply">Apply</button>
+        <button class="btn small" type="button" id="rDelete">Delete room</button>
+        <button class="btn small" type="button" id="rClose">Done</button>
+      </div>
+    </form>
+    <div class="row inputs">
+      <label>Walls <select id="wallFinish"></select></label>
+      <label>Doors <select id="doorFinish"></select></label>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Numbers</h2>
     <dl id="stats"></dl>
     <div class="row inputs">
       <label>sq ft per marla <input id="marla" type="number" value="225" min="1"></label>
@@ -54,11 +84,11 @@
   </section>
 
   <section>
-    <h2>4 · See it on the table</h2>
+    <h2>5 · See it on the table</h2>
     <div class="ar">
       <div id="qr"></div>
       <div>
-        <p>Scan on a phone on the same Wi-Fi, then tap <b>View on your table</b>. Edits made here update the phone.</p>
+        <p>Scan with a phone, then tap <b>View on your table</b>. Edits made here update the phone. The phone gets a lighter model so it loads fast.</p>
         <a id="arLink" class="btn small" target="_blank">Open AR page</a>
       </div>
     </div>

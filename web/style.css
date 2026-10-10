@@ -79,3 +79,10 @@ footer { color: var(--muted); font-size: 12px; margin-top: 12px; }
 .sign.gate { background: #b91c1c; color: #fff; font-size: 13px; }
 .sign.gate::after { content: " ▼"; }
 .sign.entry { background: rgba(31,35,40,.85); color: #fff; font-weight: 600; }
+.gen { display: flex; gap: 8px; margin: 8px 0 0; align-items: center; }
+.gen textarea { height: 62px; flex: 1; min-width: 0; resize: vertical; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+.inspector { background: var(--bg); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.inputs input, .inputs select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; width: 100%; }
+.label.selected { background: var(--accent); color: var(--accent-ink); }
+.label.selected small { color: inherit; opacity: .85; }
+#view canvas { cursor: pointer; }
