@@ -1,0 +1,24 @@
+{
+  "rooms": [
+    {"name": "Car Porch", "x": 0, "y": 0, "w": 12, "h": 20},
+    {"name": "Drawing Room", "x": 12, "y": 0, "w": 23, "h": 14},
+    {"name": "Lounge", "x": 12, "y": 14, "w": 23, "h": 18},
+    {"name": "Kitchen", "x": 0, "y": 20, "w": 12, "h": 12},
+    {"name": "Bedroom 1", "x": 0, "y": 32, "w": 16, "h": 16},
+    {"name": "Bath 1", "x": 16, "y": 32, "w": 7, "h": 16},
+    {"name": "Bedroom 2", "x": 23, "y": 32, "w": 12, "h": 16},
+    {"name": "Lawn", "x": 0, "y": 48, "w": 35, "h": 17}
+  ],
+  "doors": [
+    {"a": "Car Porch", "b": "outside"},
+    {"a": "Drawing Room", "b": "outside"},
+    {"a": "Car Porch", "b": "Kitchen"},
+    {"a": "Car Porch", "b": "Lounge"},
+    {"a": "Drawing Room", "b": "Lounge"},
+    {"a": "Kitchen", "b": "Lounge"},
+    {"a": "Lounge", "b": "Bedroom 1"},
+    {"a": "Lounge", "b": "Bath 1"},
+    {"a": "Lounge", "b": "Bedroom 2"},
+    {"a": "Bedroom 1", "b": "Lawn"}
+  ]
+}
