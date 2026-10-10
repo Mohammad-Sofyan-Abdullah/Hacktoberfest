@@ -313,6 +313,7 @@ Raw per-sketch results: `bench/sketches/results_<mode>_<model>.json`.
 
 | Name | Role / contribution |
 |---|---|
+| Mohammad Osman Abdullah ([@ITsOsmanX](https://github.com/ITsOsmanX)) | Main builder |
 | Mohammad Sofyan Abdullah ([@Mohammad-Sofyan-Abdullah](https://github.com/Mohammad-Sofyan-Abdullah)) | Co-builder |
 | Safwan Hafeez ([@safwanhafeez](https://github.com/safwanhafeez)) | Co-builder |
 
