@@ -114,5 +114,32 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(s["marla"], 10.1)
 
 
+class PlannerTests(unittest.TestCase):
+    SAMPLES = ["ten_marla", "five_marla", "seven_marla", "one_kanal"]
+
+    def plans(self):
+        root = Path(__file__).resolve().parent.parent / "samples"
+        for name in self.SAMPLES:
+            yield name, P.plan_circulation(json.loads((root / f"{name}.json").read_text()))
+
+    def test_one_gate_on_the_porch_and_no_kitchen_off_the_garage(self):
+        for name, (plan, _) in self.plans():
+            g = P.geometry(plan)
+            gates = [d for d in g["doors"] if d["kind"] == "gate"]
+            self.assertEqual([d["a"] for d in gates], ["Car Porch"], name)
+            self.assertTrue(gates[0]["main"], name)
+            self.assertGreaterEqual(gates[0]["hi"] - gates[0]["lo"], 8, name)
+            pairs = {frozenset((P.room_kind(P.find_room(plan, d["a"])), P.room_kind(P.find_room(plan, d["b"]))))
+                     for d in plan["doors"] if d["b"] != P.OUTSIDE}
+            self.assertNotIn(frozenset(("porch", "kitchen")), pairs, name)
+            self.assertIn(frozenset(("porch", "drawing")), pairs, name)  # guest entrance
+
+    def test_planned_plans_stay_valid_reachable_and_stable(self):
+        for name, (plan, _) in self.plans():
+            self.assertEqual(P.validate(plan), [], name)
+            self.assertEqual(P.unreachable(plan), [], name)
+            self.assertEqual(P.plan_circulation(plan)[1], [], f"{name}: second pass should change nothing")
+
+
 if __name__ == "__main__":
     unittest.main()

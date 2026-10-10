@@ -18,8 +18,16 @@ app = FastAPI(title="Naqsha")
 _model = {"glb": None, "version": 0}
 
 
-def _bundle(plan, **extra):
-    return {"plan": plan, "geometry": P.geometry(plan), "stats": P.stats(plan), **extra}
+def _bundle(plan, log=None, merge=False, **extra):
+    """Run the planner over every plan we send out. merge=True folds its notes into the
+    last log stage (the edit chat shows only that one) instead of adding a stage."""
+    plan, notes = P.plan_circulation(plan)
+    log = list(log or [])
+    if notes and merge and log:
+        log[-1] = {**log[-1], "fixes": (log[-1].get("fixes") or []) + ["planner: " + n for n in notes]}
+    elif notes:
+        log.append({"stage": "planner laid out the doors and main gate", "fixes": notes, "errors": P.validate(plan)})
+    return {"plan": plan, "geometry": P.geometry(plan), "stats": P.stats(plan), "log": log, **extra}
 
 
 def _lan_ip():
@@ -79,7 +87,7 @@ def edit(body: EditIn):
         plan, reply, ops, log = llm.edit_plan(P.normalise(body.plan), body.instruction)
     except (llm.ModelError, P.PlanError) as e:
         raise HTTPException(422, str(e))
-    return _bundle(plan, reply=reply, ops=ops, log=log)
+    return _bundle(plan, reply=reply, ops=ops, log=log, merge=True)
 
 
 @app.post("/api/model")

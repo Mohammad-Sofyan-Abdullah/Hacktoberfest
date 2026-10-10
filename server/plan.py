@@ -79,9 +79,9 @@ def _edges(r):
     return [("h", y1, x1, x2), ("h", y2, x1, x2), ("v", x1, y1, y2), ("v", x2, y1, y2)]
 
 
-def exterior_wall(room, rooms):
-    """Longest stretch of this room's boundary not shared with another room."""
-    best = None
+def exterior_segments(room, rooms):
+    """Every stretch of this room's boundary not shared with another room."""
+    segs = []
     for axis, c, lo, hi in _edges(room):
         free = [(lo, hi)]
         for o in rooms:
@@ -90,10 +90,21 @@ def exterior_wall(room, rooms):
             for oa, oc, olo, ohi in _edges(o):
                 if oa == axis and abs(oc - c) < EPS:
                     free = _subtract(free, olo, ohi)
-        for flo, fhi in free:
-            if best is None or fhi - flo > best[3] - best[2]:
-                best = (axis, c, flo, fhi)
-    return best
+        segs += [(axis, c, flo, fhi) for flo, fhi in free if fhi - flo > EPS]
+    return segs
+
+
+def exterior_wall(room, rooms):
+    """Longest stretch of this room's boundary not shared with another room."""
+    return max(exterior_segments(room, rooms), key=lambda s: s[3] - s[2], default=None)
+
+
+def front_wall(room, rooms):
+    """Exterior wall facing the street (north, y = 0) if the room has one, else its longest."""
+    top = min(r["y"] for r in rooms)
+    front = [s for s in exterior_segments(room, rooms) if s[0] == "h" and abs(s[1] - top) < EPS
+             and s[3] - s[2] >= MIN_DOOR_WALL]
+    return max(front, key=lambda s: s[3] - s[2]) if front else exterior_wall(room, rooms)
 
 
 def find_room(plan, name):
@@ -576,6 +587,127 @@ def apply_ops(plan, ops):
     return plan, notes
 
 
+# ---------------------------------------------------------------- planner
+
+ROOM_KINDS = [("porch", r"porch|garage|parking|car"), ("drawing", r"drawing|guest|baithak"),
+              ("lounge", r"lounge|tv|living|family|hall"), ("dining", r"dining"), ("kitchen", r"kitchen"),
+              ("bath", r"bath|wash|toilet|\bwc\b"), ("bed", r"bed|master"), ("store", r"store|pantry|laundry"),
+              ("lawn", r"lawn|garden|grass|sehan|courtyard|yard")]
+# pairs of rooms an architect would never join with a door
+NEVER = {frozenset(p) for p in [
+    ("porch", "kitchen"), ("porch", "bed"), ("porch", "bath"), ("porch", "store"),
+    ("drawing", "kitchen"), ("drawing", "bed"), ("drawing", "bath"), ("drawing", "store"),
+    ("kitchen", "bed"), ("kitchen", "bath"), ("bath", "store"), ("bath", "lawn"), ("bed", "store"), ("bath",), ("bed",)]}
+# which rooms each kind should open into, best first
+PARENTS = {"drawing": ["porch", "lounge"], "lounge": ["porch", "drawing", "dining"],
+           "dining": ["lounge", "kitchen"], "kitchen": ["dining", "lounge"],
+           "bed": ["lounge", "dining", "other"], "bath": ["bed", "lounge", "dining"],
+           "store": ["kitchen", "lounge", "dining"], "lawn": ["lounge", "dining", "bed"],
+           "other": ["lounge", "dining", "drawing"], "porch": []}
+DOOR_WIDTHS = {"gate": 12.0, "main": 4.0, "door": 3.5, "bath": 2.75}
+
+
+def room_kind(r):
+    for kind, pat in ROOM_KINDS:
+        if re.search(pat, r["name"], re.I):
+            return kind
+    return "other"
+
+
+def _door_kind(a, b):
+    ka, kb = room_kind(a), (room_kind(b) if b else OUTSIDE)
+    if b is None:
+        return {"porch": "gate", "lawn": "door"}.get(ka, "main")
+    if "porch" in (ka, kb) and {ka, kb} & {"drawing", "lounge"}:
+        return "main"
+    return "bath" if "bath" in (ka, kb) else "door"
+
+
+def plan_circulation(plan):
+    """Lay out doors the way a Pakistani house is planned: one main gate on the car porch's
+    street side, guests go porch -> drawing room, family go porch -> lounge, and the kitchen,
+    bedrooms and baths open off the family side, never the garage. Returns (plan, notes)."""
+    plan = copy.deepcopy(plan)
+    rooms, notes = plan["rooms"], []
+    if not rooms:
+        return plan, notes
+    by = {r["name"].lower(): r for r in rooms}
+    kind = {n: room_kind(r) for n, r in by.items()}
+
+    def wall(a, b):
+        seg = front_wall(by[a], rooms) if b == OUTSIDE else shared_wall(by[a], by[b])
+        return seg is not None and seg[3] - seg[2] >= MIN_DOOR_WALL
+
+    porches = [n for n, k in kind.items() if k == "porch" and wall(n, OUTSIDE)]
+    order = porches or [n for n in by if kind[n] == "drawing" and wall(n, OUTSIDE)] \
+        or [n for n in by if kind[n] == "lounge" and wall(n, OUTSIDE)] \
+        or [n for n in by if wall(n, OUTSIDE)]
+    entry = order[0] if order else None
+
+    def allowed(a, b):
+        if b == OUTSIDE:
+            return a == entry or kind[a] == "lawn"
+        return frozenset((kind[a], kind[b])) not in NEVER
+
+    keep, removed = [], {}
+    for d in plan["doors"]:
+        a, b = d["a"].lower(), d["b"].lower()
+        if a not in by or (b != OUTSIDE and b not in by):
+            continue
+        if allowed(a, b):
+            keep.append({"a": by[a]["name"], "b": OUTSIDE if b == OUTSIDE else by[b]["name"]})
+        elif b == OUTSIDE:
+            removed[frozenset((a, b))] = (f"moved the entrance: {by[a]['name']} no longer opens to the street; "
+                                          f"the main gate is on {by[entry]['name']}")
+        else:
+            removed[frozenset((a, b))] = f"removed the {by[a]['name']}–{by[b]['name']} door (a planner keeps them apart)"
+    original = {frozenset((d["a"].lower(), d["b"].lower())) for d in plan["doors"]}
+    plan["doors"] = keep
+    links = lambda n: {(d["b"] if d["a"].lower() == n else d["a"]).lower() for d in plan["doors"]
+                       if n in (d["a"].lower(), d["b"].lower())}
+
+    def add(a, b, why):
+        if b in links(a):
+            return
+        plan["doors"].append({"a": by[a]["name"], "b": OUTSIDE if b == OUTSIDE else by[b]["name"]})
+        if not removed.pop(frozenset((a, b)), None) and frozenset((a, b)) not in original:
+            notes.append(why)  # a door we dropped and had to put back is not news
+
+    if entry and OUTSIDE not in links(entry):
+        add(entry, OUTSIDE, f"put the main gate on the street side of {by[entry]['name']}")
+    # every room opens into the right kind of neighbour (guests: porch -> drawing; family: porch -> lounge)
+    for k in ["drawing", "lounge", "dining", "kitchen", "bed", "bath", "store", "lawn", "other"]:
+        for n in [n for n in by if kind[n] == k]:
+            parents = PARENTS[k]
+            have = {kind[m] for m in links(n) if m != OUTSIDE}
+            if k == "drawing" and "porch" not in have and any(kind[m] == "porch" and wall(n, m) for m in by):
+                have.discard("lounge")  # the guest entrance from the porch matters most
+            if have & set(parents):
+                continue
+            for pk in parents:
+                cands = [m for m in by if kind[m] == pk and m != n and wall(n, m) and allowed(n, m)]
+                if cands:
+                    m = max(cands, key=lambda m: by[m]["w"] * by[m]["h"])
+                    add(m, n, f"{by[n]['name']} now opens off the {by[m]['name']}")
+                    break
+    # anything still cut off gets a door from the best reachable neighbour; never walk through a bath
+    def rank(s, m):
+        prefs = PARENTS[kind[s]]
+        return (not allowed(s, m), kind[s] == "bath", prefs.index(kind[m]) if kind[m] in prefs else 99,
+                -by[m]["w"] * by[m]["h"])
+    for _ in range(len(rooms)):
+        stuck = [r["name"].lower() for r in unreachable(plan)]
+        if not stuck:
+            break
+        reach = set(by) - set(stuck)
+        options = [(s, m) for s in stuck for m in reach if kind[m] != "bath" and wall(s, m)]
+        if not options:
+            break
+        s, m = min(options, key=lambda p: rank(*p))
+        add(m, s, f"{by[s]['name']} had no way in; added a door from {by[m]['name']}")
+    return plan, list(removed.values()) + notes
+
+
 # ---------------------------------------------------------------- geometry + stats
 
 def geometry(plan):
@@ -590,14 +722,22 @@ def geometry(plan):
         a, b = _door_rooms(plan, d)
         if a is None:
             continue
-        seg = exterior_wall(a, rooms) if b is None else shared_wall(a, b)
+        kind = _door_kind(a, b)
+        if b is None:
+            seg = front_wall(a, rooms) if kind in ("gate", "main") else exterior_wall(a, rooms)
+        else:
+            seg = shared_wall(a, b)
         if not seg or seg[3] - seg[2] < MIN_DOOR_WALL:
             continue
         axis, c, lo, hi = seg
-        width = min(DOOR_WIDTH, hi - lo - 1.0)
+        width = min(DOOR_WIDTHS[kind], hi - lo - (2.0 if kind == "gate" else 1.0))
         mid = (lo + hi) / 2
         doors.append({"axis": axis, "c": c, "lo": mid - width / 2, "hi": mid + width / 2,
-                      "a": a["name"], "b": b["name"] if b else OUTSIDE, "main": b is None})
+                      "a": a["name"], "b": b["name"] if b else OUTSIDE, "kind": kind, "main": False})
+    entrances = [dr for dr in doors if dr["b"] == OUTSIDE]
+    if entrances:  # the one door a visitor uses: the gate, else the main door, else any way in
+        rank = {"gate": 0, "main": 1}
+        min(entrances, key=lambda dr: rank.get(dr["kind"], 2))["main"] = True
     walls = []
     for (axis, c), ivs in lines.items():
         ivs.sort()
