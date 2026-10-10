@@ -1,0 +1,102 @@
+{
+ "summary": {
+  "mode": "coords",
+  "sketches": 8,
+  "model_only_valid": "25%",
+  "plus_snap_valid": "75%",
+  "plus_checker_loop_valid": "75%",
+  "room_recall": "100%",
+  "mean_size_error_ft": 0.11,
+  "rooms_placed_correctly": "57%"
+ },
+ "rows": [
+  {
+   "sketch": "00.png",
+   "raw_valid": true,
+   "after_snap_valid": true,
+   "final_valid": true,
+   "repair_rounds": 0,
+   "secs": 11.1,
+   "room_recall": 1.0,
+   "size_err_ft": 0.14285714285714285,
+   "placed_right": 0.5714285714285714
+  },
+  {
+   "sketch": "01.png",
+   "raw_valid": false,
+   "after_snap_valid": false,
+   "final_valid": false,
+   "repair_rounds": 2,
+   "secs": 46.0,
+   "room_recall": 1.0,
+   "size_err_ft": 0.25,
+   "placed_right": 0.18181818181818182
+  },
+  {
+   "sketch": "02.png",
+   "raw_valid": false,
+   "after_snap_valid": false,
+   "final_valid": false,
+   "repair_rounds": 2,
+   "secs": 38.8,
+   "room_recall": 1.0,
+   "size_err_ft": 0.05,
+   "placed_right": 0.1
+  },
+  {
+   "sketch": "03.png",
+   "raw_valid": false,
+   "after_snap_valid": true,
+   "final_valid": true,
+   "repair_rounds": 0,
+   "secs": 16.3,
+   "room_recall": 1.0,
+   "size_err_ft": 0.0,
+   "placed_right": 1.0
+  },
+  {
+   "sketch": "04.png",
+   "raw_valid": false,
+   "after_snap_valid": true,
+   "final_valid": true,
+   "repair_rounds": 0,
+   "secs": 11.0,
+   "room_recall": 1.0,
+   "size_err_ft": 0.0,
+   "placed_right": 0.2857142857142857
+  },
+  {
+   "sketch": "05.png",
+   "raw_valid": true,
+   "after_snap_valid": true,
+   "final_valid": true,
+   "repair_rounds": 0,
+   "secs": 15.6,
+   "room_recall": 1.0,
+   "size_err_ft": 0.0,
+   "placed_right": 1.0
+  },
+  {
+   "sketch": "06.png",
+   "raw_valid": false,
+   "after_snap_valid": true,
+   "final_valid": true,
+   "repair_rounds": 0,
+   "secs": 16.8,
+   "room_recall": 1.0,
+   "size_err_ft": 0.09090909090909091,
+   "placed_right": 0.6363636363636364
+  },
+  {
+   "sketch": "07.png",
+   "raw_valid": false,
+   "after_snap_valid": true,
+   "final_valid": true,
+   "repair_rounds": 0,
+   "secs": 11.2,
+   "room_recall": 1.0,
+   "size_err_ft": 0.375,
+   "placed_right": 0.75
+  }
+ ]
+}
