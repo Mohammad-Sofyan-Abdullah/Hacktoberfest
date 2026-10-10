@@ -13,8 +13,8 @@ Timeline assumes a 14:30 code freeze and a 15:00 finish. If the organizers annou
 ## Setup (13:20)
 
 ```powershell
-git clone <repo URL from A>
-cd naqsha
+git clone https://github.com/Mohammad-Sofyan-Abdullah/Hacktoberfest.git
+cd Hacktoberfest
 pip install -r requirements.txt
 python -m unittest discover -s tests -t . -v      # expect 16/16 OK
 ```

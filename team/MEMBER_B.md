@@ -13,8 +13,8 @@ Timeline assumes a 14:30 code freeze and a 15:00 finish. If the organizers annou
 ## Setup (13:20)
 
 ```powershell
-git clone <repo URL from A>
-cd naqsha
+git clone https://github.com/Mohammad-Sofyan-Abdullah/Hacktoberfest.git
+cd Hacktoberfest
 pip install -r requirements.txt
 $env:OLLAMA_URL="http://<A's IP>:11434"     # use A's GPU for model calls
 python -m uvicorn server.app:app --host 0.0.0.0 --port 8000

@@ -10,12 +10,7 @@ Timeline assumes a 14:30 code freeze and a 15:00 finish. If the organizers annou
 
 ## 13:15–13:30 · Unblock the team (do this first)
 
-1. **Create the public GitHub repo and push** so B and C can clone it:
-   ```powershell
-   cd D:\Hacktoberfest\naqsha
-   gh repo create naqsha --public --source . --push
-   ```
-   Then share the URL in the team chat. Check that it opens in a private window without logging in.
+1. ~~Create the public GitHub repo and push~~ **Done:** https://github.com/Mohammad-Sofyan-Abdullah/Hacktoberfest (project files are at the repo root). Share the link in the team chat, and check that it opens in a private window without logging in.
 2. **Start the backup model download** in a separate terminal (about 6 GB, so start it now):
    ```powershell
    ollama pull qwen3-vl:8b
