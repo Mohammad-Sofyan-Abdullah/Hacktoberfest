@@ -185,6 +185,127 @@ def _check(raw, log, stage, secs, mode):
     return plan, errs
 
 
+DESIGN_PROMPT = """You are an architect designing a single-storey Pakistani house. Units are FEET.
+Describe the house as horizontal ROWS (bands of rooms) from the FRONT (street, top) to the BACK (bottom).
+In each row list the rooms from LEFT to RIGHT with name, w (width, left-right) and h (depth, top-bottom).
+
+Rules:
+1. Row 1 (at the street) must contain the "Car Porch" and the "Drawing Room".
+2. Next row(s): "Lounge", "Kitchen", "Dining" (if asked).
+3. Then the bedrooms, each with an attached bath next to it ("Bedroom 1", "Bath 1", "Bedroom 2", "Bath 2" ...).
+4. If a lawn is requested, put "Lawn" alone as the LAST row, spanning the full width.
+5. Every row must add up to the SAME total width (the plot width). Rooms in one row share the same h.
+6. Follow any plot size given. 1 marla = 225 sq ft. 5 marla ~ 25x45 ft, 7 marla ~ 30x52 ft,
+   10 marla ~ 35x65 ft, 1 kanal ~ 50x90 ft (width x depth). The rows' depths should add up to about the plot depth.
+7. Unique names ("Bedroom 1", "Bedroom 2", "Bath 1" ...). Realistic sizes: bedroom 12-16 ft, bath 6-8 ft wide,
+   kitchen 10-12 ft, lounge 14-20 ft, drawing room 12-16 ft, car porch 10-14 ft wide.
+8. doors: connect rooms that touch: Car Porch <-> "outside", Car Porch <-> Drawing Room, Drawing Room <-> Lounge,
+   Lounge <-> Kitchen, Lounge <-> each Bedroom, each Bedroom <-> its Bath, Lounge <-> Lawn.
+Return only JSON."""
+
+
+MIN_DEPTH = [(r"bed", 12), (r"lounge|tv|family", 13), (r"drawing|guest", 12), (r"porch|garage|car", 16),
+             (r"kitchen", 10), (r"dining", 10), (r"lawn|garden", 10)]
+
+
+def plot_width(prompt):
+    """Plot width in ft implied by '10 marla' / '1 kanal' / '35x65' in the brief (default 35)."""
+    if m := re.search(r"(\d+(?:\.\d+)?)\s*(?:ft|feet|')?\s*(?:x|×|by)\s*(\d+(?:\.\d+)?)", prompt, re.I):
+        return min(float(m.group(1)), float(m.group(2)))
+    marla = None
+    if m := re.search(r"(\d+(?:\.\d+)?)\s*kanal", prompt, re.I):
+        marla = float(m.group(1)) * 20
+    elif m := re.search(r"(\d+(?:\.\d+)?)\s*marla", prompt, re.I):
+        marla = float(m.group(1))
+    if not marla:
+        return 35.0
+    return float(round((marla * P.SQFT_PER_MARLA / 1.85) ** 0.5))  # plots are ~1:1.85 (10 marla ~ 35x65)
+
+
+def _tidy_rows(raw, width):
+    """Small models cram every bedroom into one very wide, shallow row. Split rows wider
+    than the plot (keeping each bath with its bedroom), give rooms a sensible minimum
+    depth, and fit every row to the plot width. Returns (raw, notes)."""
+    rows = raw.get("rows") if isinstance(raw, dict) else None
+    if not isinstance(rows, list):
+        return raw, []
+    notes, out = [], []
+    for row in rows:
+        items = [r for r in ((row.get("rooms") if isinstance(row, dict) else row) or [])
+                 if isinstance(r, dict) and r.get("name") and P._num(r.get("w")) and P._num(r.get("h"))]
+        if not items:
+            continue
+        units = []
+        for r in items:  # a bath rides along with the bedroom before it
+            if units and re.search(r"bath|wash|toilet", r["name"], re.I) and re.search(r"bed", units[-1][-1]["name"], re.I):
+                units[-1].append(r)
+            else:
+                units.append([r])
+        packed, cur = [], []
+        for u in units:
+            if cur and sum(P._num(r["w"]) for r in cur + u) > width * 1.3:
+                packed.append(cur)
+                cur = []
+            cur += u
+        packed.append(cur)
+        if len(packed) > 1:
+            notes.append(f"split a {sum(P._num(r['w']) for r in items):g} ft wide row into {len(packed)} rows to fit the {width:g} ft plot")
+        out += packed
+    for row in out:
+        hs = [P._num(r["h"]) for r in row]
+        need = max([d for r in row for pat, d in MIN_DEPTH if re.search(pat, r["name"], re.I)] or [0])
+        cap = 22 if any(re.search(r"porch|garage|car|lawn|garden", r["name"], re.I) for r in row) else 18
+        h0 = max(set(hs), key=lambda v: (hs.count(v), v))
+        h = min(max(h0, need), max(cap, need))
+        if h != h0:
+            notes.append(f"{', '.join(r['name'] for r in row)} row was {h0:g} ft deep: set to {h:g} ft")
+        ws0 = [P._num(r["w"]) for r in row]
+        bath = [bool(re.search(r"bath|wash|toilet", r["name"], re.I)) for r in row]
+        if sum(ws0) < width and not all(bath) and any(bath):  # growing: baths keep their width
+            fixed = sum(w for w, b in zip(ws0, bath) if b)
+            k = (width - fixed) / (sum(ws0) - fixed)
+            ws = [w if b else round(w * k * 2) / 2 for w, b in zip(ws0, bath)]
+        else:
+            k = width / sum(ws0)
+            ws = [round(w * k * 2) / 2 for w in ws0]
+        # absorb rounding in the last non-bath room so every row is exactly the plot width
+        i = max((j for j, b in enumerate(bath) if not b), default=len(ws) - 1)
+        ws[i] += width - sum(ws)
+        for r, w in zip(row, ws):
+            r["w"], r["h"] = w, h
+    return {"rows": [{"rooms": row} for row in out], "doors": raw.get("doors") or []}, notes
+
+
+def design_plan(prompt, rounds=1):
+    """Text brief -> designed + validated plan. Returns (plan, log). Raises ModelError."""
+    log = []
+    width = plot_width(prompt)
+    messages = [{"role": "system", "content": DESIGN_PROMPT},
+                {"role": "user", "content": f"Design this house (plot width {width:g} ft, so the w values in every row add up to {width:g} ft; "
+                                            f"h is each room's own depth, usually 10-18 ft; at most 2 bedrooms per row): {prompt}"}]
+    raw, secs = _chat(messages, ROWS_SCHEMA)
+    raw, tidy = _tidy_rows(raw, width)
+    plan, errs = _check(raw, log, "model designed the house", secs, "rows")
+    if tidy and log:
+        log[-1]["fixes"] = tidy + log[-1]["fixes"]
+    r = 0
+    while errs and r < rounds:
+        r += 1
+        feedback = ("Your design has these problems:\n" + "\n".join(f"- {e['msg']}" for e in errs)
+                    + "\nFix them and return the complete corrected JSON.")
+        messages += [{"role": "assistant", "content": json.dumps(raw)}, {"role": "user", "content": feedback}]
+        raw, secs = _chat(messages, ROWS_SCHEMA)
+        raw, tidy = _tidy_rows(raw, width)
+        candidate, errs2 = _check(raw, log, f"repair round {r}: model redesigned with checker feedback", secs, "rows")
+        if tidy:
+            log[-1]["fixes"] = tidy + log[-1]["fixes"]
+        if candidate is not None and (plan is None or len(errs2) <= len(errs)):
+            plan, errs = candidate, errs2
+    if plan is None:
+        raise ModelError("the model could not design a usable plan from this description")
+    return plan, log
+
+
 DIMS = re.compile(r"(\d+(?:\.\d+)?)\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?)", re.I)
 SIDE_WORDS = re.compile(r"(?<![a-z])(east|west|north|south|left|right|front|back|top|bottom)(?![a-z])", re.I)
 

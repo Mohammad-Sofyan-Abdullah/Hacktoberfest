@@ -604,7 +604,7 @@ PARENTS = {"drawing": ["porch", "lounge"], "lounge": ["porch", "drawing", "dinin
            "bed": ["lounge", "dining", "other"], "bath": ["bed", "lounge", "dining"],
            "store": ["kitchen", "lounge", "dining"], "lawn": ["lounge", "dining", "bed"],
            "other": ["lounge", "dining", "drawing"], "porch": []}
-DOOR_WIDTHS = {"gate": 12.0, "main": 4.0, "door": 3.5, "bath": 2.75}
+DOOR_WIDTHS = {"gate": 12.0, "main": 5.0, "door": 4.0, "bath": 3.0}
 
 
 def room_kind(r):

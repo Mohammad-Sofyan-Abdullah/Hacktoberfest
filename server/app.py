@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
+import os
+import random
 import socket
 from pathlib import Path
 
@@ -43,8 +46,17 @@ def _lan_ip():
 
 @app.get("/api/info")
 def info(request: Request):
-    port = request.url.port or 8000
-    return {"model": llm.MODEL, "ar_url": f"http://{_lan_ip()}:{port}/ar.html"}
+    public = os.environ.get("NAQSHA_PUBLIC_URL", "").strip()
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    hostname = host.split(":")[0].lower()
+    https = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
+    if public:
+        ar_url = f"{public.rstrip('/')}/ar.html"
+    elif host and hostname not in ("localhost", "127.0.0.1", "::1", "[::1]") and https:
+        ar_url = f"https://{host}/ar.html"
+    else:
+        ar_url = f"http://{_lan_ip()}:{request.url.port or 8000}/ar.html"
+    return {"model": llm.MODEL, "ar_url": ar_url}
 
 
 @app.get("/api/sample")
@@ -88,6 +100,44 @@ def edit(body: EditIn):
     except (llm.ModelError, P.PlanError) as e:
         raise HTTPException(422, str(e))
     return _bundle(plan, reply=reply, ops=ops, log=log, merge=True)
+
+
+class OpsIn(PlanIn):
+    ops: list[dict]
+
+
+class GenerateIn(BaseModel):
+    prompt: str
+    seed: int | None = None
+
+
+@app.post("/api/ops")
+def manual_ops(body: OpsIn):
+    """Apply edit ops (same format as plan.apply_ops) directly, without the model."""
+    try:
+        plan = P.normalise(body.plan)
+        new, notes = P.apply_ops(plan, body.ops)
+        new, fixes = P.repair(new)
+    except (P.PlanError, TypeError, ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+    return _bundle(new, log=[{"stage": "manual edit", "fixes": list(notes) + list(fixes), "errors": P.validate(new)}])
+
+
+@app.post("/api/generate")
+def generate(body: GenerateIn):
+    """Text brief -> model designs the plan -> rendered as a hand-drawn sketch PNG."""
+    if not body.prompt.strip():
+        raise HTTPException(400, "prompt is empty")
+    try:
+        plan, log = llm.design_plan(body.prompt)
+    except llm.ModelError as e:
+        raise HTTPException(502, str(e))
+    from bench.make_sketches import render  # needs repo root on sys.path (true when run from there)
+    seed = body.seed if body.seed is not None else random.randrange(1 << 30)
+    buf = io.BytesIO()
+    render(plan, random.Random(seed)).save(buf, format="PNG")
+    image = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return _bundle(plan, log=log, image=image)
 
 
 @app.post("/api/model")
